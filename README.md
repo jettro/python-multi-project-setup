@@ -19,7 +19,7 @@ environment, and release cycle. They are connected through `uv`'s
 
 ## Repository contents
 
-### `platform-framework` (uv workspace, 3 packages)
+### [`platform-framework`](https://github.com/jettro/pmps-platform-framework) (uv workspace, 3 packages)
 
 | Package | Module | What it provides |
 |---|---|---|
@@ -27,14 +27,14 @@ environment, and release cycle. They are connected through `uv`'s
 | `framework-infra` | `framework_infra` | `InMemoryRepository[T]`, `JsonFileRepository[T]` |
 | `framework-evaluation` | `framework_evaluation` | `RepositoryContractSuite`, `EntityFactory` |
 
-### `platform-core` (uv workspace, 2 packages)
+### [`platform-core`](https://github.com/jettro/pmps-platform-core) (uv workspace, 2 packages)
 
 | Package | Module | What it provides |
 |---|---|---|
 | `core-domain` | `core_domain` | `Money`, `Address`, `Product` |
 | `core-services` | `core_services` | `ProductService`, `CatalogQuery` |
 
-### `sales-application` (uv workspace, 2 packages)
+### [`sales-application`](https://github.com/jettro/pmps-sales-application) (uv workspace, 2 packages)
 
 | Package | Module | What it provides |
 |---|---|---|
