@@ -1,0 +1,10 @@
+# The three project repos are independent git repositories.
+# Listing them here prevents git from showing them as untracked.
+platform-framework/
+platform-core/
+sales-application/
+
+# Wheels published to the local index are generated artifacts, not source.
+# The directory itself (with .gitkeep) is tracked so the volume mount works.
+local-pypi/packages/*.whl
+local-pypi/packages/*.tar.gz

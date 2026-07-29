@@ -1,0 +1,8 @@
+services:
+  pypiserver:
+    image: pypiserver/pypiserver:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./packages:/data/packages
+    command: run -p 8080 /data/packages --overwrite --authenticate . --passwords .
