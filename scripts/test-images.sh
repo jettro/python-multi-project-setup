@@ -18,7 +18,7 @@ for index in "${!images[@]}"; do
     port="$((18001 + index))"
     containers+=("${container}")
 
-    docker run --rm "${image}" python -c \
+    docker run --rm --entrypoint python "${image}" -c \
         "import sales_api, sales_backend, core_domain, core_services, framework_core, framework_infra"
     uid="$(docker run --rm --entrypoint id "${image}" -u)"
     if [[ "${uid}" == "0" ]]; then
