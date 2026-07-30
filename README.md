@@ -1,176 +1,162 @@
 # Python Multi-Project Setup with uv
 
-A working implementation of the blog post
-[**How I'm Structuring Larger Python Projects with uv**](https://coenradie.com/posts/structuring-python-projects-with-uv/).
+A working example of three independent uv workspaces:
 
-## The three repositories
-
-```
-platform-framework  ←  reusable technical building blocks (no domain knowledge)
-       ↑
-platform-core       ←  shared domain primitives (Product, Money, Address)
-       ↑
-sales-application   ←  concrete sales problem (Cart, Order, pricing, web UI)
+```text
+platform-framework -> platform-core -> sales-application
 ```
 
-Each repo is an independent git repository with its own lock file, virtual
-environment, and release cycle. They are connected through `uv`'s
-`[tool.uv.sources]` — not through a permanent shared workspace.
+Each repository retains its own release cycle, virtual environment, and host-development
+lock. The coordination repository adds reproducible Docker inputs without combining the
+repositories into one uv workspace.
 
-## Repository contents
-
-### [`platform-framework`](https://github.com/jettro/pmps-platform-framework) (uv workspace, 3 packages)
-
-| Package | Module | What it provides |
-|---|---|---|
-| `framework-core` | `framework_core` | `Entity`, `Repository[T]`, `Result[T,E]`, `Settings`, `EventBus` |
-| `framework-infra` | `framework_infra` | `InMemoryRepository[T]`, `JsonFileRepository[T]` |
-| `framework-evaluation` | `framework_evaluation` | `RepositoryContractSuite`, `EntityFactory` |
-
-### [`platform-core`](https://github.com/jettro/pmps-platform-core) (uv workspace, 2 packages)
-
-| Package | Module | What it provides |
-|---|---|---|
-| `core-domain` | `core_domain` | `Money`, `Address`, `Product` |
-| `core-services` | `core_services` | `ProductService`, `CatalogQuery` |
-
-### [`sales-application`](https://github.com/jettro/pmps-sales-application) (uv workspace, 2 packages)
-
-| Package | Module | What it provides |
-|---|---|---|
-| `sales-backend` | `sales_backend` | `Order`, `Cart`, `PricingEngine`, `OrderService` |
-| `sales-api` | `sales_api` | FastAPI app + single-page HTML/JS UI |
-
----
-
-## The three dependency-source modes (core blog concept)
-
-`uv` separates *what* you depend on (`[project.dependencies]`) from *where*
-you get it (`[tool.uv.sources]`). This lets you switch sources without
-changing the dependency contract.
-
-### 1. Private index (normal day)
-
-```toml
-# platform-core/pyproject.toml — normal workflow
-[tool.uv.sources]
-framework-core  = { index = "local" }
-framework-infra = { index = "local" }
-```
-
-Released wheels from `http://localhost:8080`. CI uses exactly the same
-artifact as local development.
-
-### 2. Editable local path (cross-repo feature)
-
-```toml
-# platform-core/pyproject.toml — when editing framework simultaneously
-[tool.uv.sources]
-framework-core  = { path = "../platform-framework/packages/framework-core", editable = true }
-framework-infra = { path = "../platform-framework/packages/framework-infra", editable = true }
-```
-
-Changes in `platform-framework` are immediately visible in `platform-core`
-without rebuilding a wheel.
-
-### 3. Exact Git commit (share unreleased change)
-
-```toml
-[tool.uv.sources]
-framework-core = {
-    git = "ssh://git@github.com/yourorg/platform-framework.git",
-    rev = "a1b2c3..."
-}
-```
-
-Pins a specific commit — reproducible without publishing to the index.
-
----
-
-## Workspaces: inside repos only
-
-Each repo uses a uv workspace internally so that its packages share one
-lock file and one virtual environment during development. The repos
-themselves are *never* combined into one workspace — that would merge their
-independent lifecycles.
-
-```
-platform-framework/
-├── pyproject.toml      ← workspace root (virtual — no [project])
-└── packages/
-    ├── framework-core/pyproject.toml
-    ├── framework-infra/pyproject.toml   # workspace = true source for framework-core
-    └── framework-evaluation/pyproject.toml
-```
-
----
-
-## Quick start
-
-### Development mode (editable paths — works immediately)
+## Checkout and host development
 
 ```bash
-# From this directory:
-make sync-all    # uv sync each repo in dependency order
-make test-all    # 143 tests across all three repos
-make run         # starts http://localhost:8000
-```
-
-### Released-packages mode (private index)
-
-```bash
-# 1. Start the local private PyPI server
-make pypi-start           # docker compose up → http://localhost:8080
-
-# 2. Build and publish upstream wheels
-make build-all
-make publish-all          # framework + core wheels → local pypi
-
-# 3. Switch platform-core and sales-application to index sources
-#    In each repo's root pyproject.toml:
-#    comment out the path sources, uncomment the index sources
-
-# 4. Re-sync
+bash checkout.sh
 make sync-all
-
-# 5. Or run via Docker (uses released packages + local pypi)
-make docker-up            # builds image, starts sales-api on :8000
+make test-all
+make run
 ```
 
-### Switching a single repo back to released packages
+The normal repository manifests use editable sibling paths, so changes flow immediately
+between the three checkouts. `make check-locks` verifies those development locks without
+rewriting them.
 
-Edit the workspace root `pyproject.toml` in the relevant repo. The
-comment blocks mark exactly what to swap:
+Workspace-only source declarations live at each repository root. This keeps individual
+package metadata portable when a package is built, published, or installed from a Git
+subdirectory.
 
-```toml
-# DEVELOPMENT MODE (active):
-framework-core = { path = "../platform-framework/packages/framework-core", editable = true }
+## Authenticated local package index
 
-# RELEASED MODE (uncomment to activate):
-# framework-core = { index = "local" }
-```
-
-Then `uv sync` — no other change needed.
-
----
-
-## CI pattern (from the blog)
+The local pypiserver is an intentionally small teaching registry. Initialize credentials
+before starting it:
 
 ```bash
-uv lock --check   # fail if lock file is out of date
-uv sync --locked  # install exactly what is locked
-uv run pytest
+make pypi-init-auth
+make pypi-start
+make pypi-status
 ```
 
-The lock file is the contract between development and CI. Committing it
-ensures both environments install identical packages.
+Initialization prompts without putting the password in shell history. For noninteractive
+use, provide `PYPI_USERNAME` and `PYPI_PASSWORD` in the environment. It creates ignored
+`local-pypi/.env` and `local-pypi/auth/htpasswd` files with restrictive permissions.
 
-## Verifying released-package metadata
+Package listing and `/health` are public for diagnostics. Uploads and package downloads
+require Basic authentication. Plain HTTP Basic authentication is acceptable only for this
+localhost demonstration; a real registry must use HTTPS and managed, rotated credentials.
+
+The demo permits overwriting a version to keep the learning loop short. Production release
+repositories should reject overwrites. Reset only generated packages with:
 
 ```bash
-uv lock --no-sources
+make pypi-reset-packages
 ```
 
-Resolves using only `[project.dependencies]` (ignores `[tool.uv.sources]`).
-Reveals whether the portable dependency metadata is self-consistent
-without any local overrides.
+Build and publish upstream wheels in dependency order:
+
+```bash
+make build-all
+make publish-all
+```
+
+`publish-all` publishes framework and core wheels. The sales packages are built from the
+current sales source inside every image and do not need to be published first.
+
+## Three immutable image modes
+
+The sales repository contains independent deployment manifests and locks:
+
+```text
+sales-application/docker/modes/
+├── release/{pyproject.toml,uv.lock}
+├── git/{pyproject.toml,uv.lock}
+└── local/{pyproject.toml,uv.lock}
+```
+
+- `release` installs the four upstream packages from the authenticated `local` index.
+- `git` installs them from full, exact commits in the two public GitHub repositories.
+- `local` copies neighbouring checkouts through narrow named BuildKit contexts and installs
+  non-editable snapshots.
+
+All modes run `uv sync --locked --no-dev --no-editable` during the build, copy only the
+completed virtual environment into the runtime image, run as UID 10001, and start through
+the `sales-api` console entry point. Kubernetes receives only the completed image and never
+resolves Python dependencies.
+
+Build one mode:
+
+```bash
+make docker-release
+make docker-git
+make docker-local
+```
+
+Or call Bake directly (Bake outputs a local Docker image):
+
+```bash
+set -a; source local-pypi/.env; set +a
+docker buildx bake release
+docker buildx bake git
+docker buildx bake local
+```
+
+Only the release target receives `UV_INDEX_LOCAL_USERNAME` and
+`UV_INDEX_LOCAL_PASSWORD`, through required BuildKit secret mounts. They are never Docker
+arguments, persistent environment variables, lock content, or image labels. The public
+index endpoint is relocated from host-side `localhost` to `host.docker.internal` for the
+build only; Bake also supplies Linux `host-gateway` support.
+
+Run a built release image:
+
+```bash
+docker run --rm -p 8000:8000 pmps-sales-application:release
+```
+
+Use `make docker-test-all` to build and smoke-test all three images.
+
+## Refreshing and validating deployment locks
+
+```bash
+./scripts/refresh-image-locks.sh release
+./scripts/refresh-image-locks.sh git
+./scripts/refresh-image-locks.sh local
+# or:
+make refresh-image-locks
+
+make check-image-locks
+```
+
+The refresh script stages copies in a safely created temporary checkout layout and replaces
+the selected lock only after `uv lock` succeeds. It never overwrites the developer manifest
+or lock. Release refresh requires the authenticated local index to contain the four upstream
+wheels.
+
+Git mode currently pins:
+
+- platform-core: `9fe1b235ff3204f30d426f2fce16f0aa8d476eb5`
+- platform-framework: `cb59cd6204d01f93a01e032fcc583c659bcbefe4`
+
+Update all entries for one repository to the same new full SHA, then refresh and validate
+the Git lock. Static dependency metadata in that manifest mirrors the four packages’
+published metadata and lets uv resolve the Git subdirectories without applying their
+repository-root development overrides.
+
+For private Git repositories, replace HTTPS sources with SSH URLs and add an SSH mount to
+the Git builder. Do not copy a private key into an image.
+
+The validator rejects wrong source kinds, editable external image sources, moving or short
+Git revisions, inconsistent repository SHAs, missing sales workspace packages, stale locks,
+and credentials embedded in URLs.
+
+## Moving to a production registry
+
+Replace the named `local` index URL, refresh the release lock, and supply
+`UV_INDEX_LOCAL_USERNAME` and `UV_INDEX_LOCAL_PASSWORD` from CI secrets. The Dockerfile
+does not contain registry credentials. Production CI should:
+
+- reject path or Git sources in a release lock;
+- reject paths or moving Git references in integration images;
+- build with HTTPS certificate verification enabled;
+- inspect image history and configuration for secret leakage;
+- publish immutable versions.

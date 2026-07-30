@@ -1,73 +1,43 @@
-# Local PyPI Server
+# Authenticated local package index
 
-A local private PyPI server used during development to host built wheels from the
-`platform-framework` repo so that `platform-core` and `sales-application` can install
-them without publishing to the public PyPI.
+This directory configures `pypiserver/pypiserver:v2.4.1` as a development-only package
+index. It is not production registry infrastructure.
 
-This directory is a coordination artifact — it does **not** have its own git repo.
-
-## Starting the Server
+From the coordination repository:
 
 ```bash
-docker compose up -d
+make pypi-init-auth
+make pypi-start
+make pypi-status
+make pypi-stop
 ```
 
-The server listens on `http://localhost:8080`.
+`pypi-init-auth` creates:
 
-## Verifying the Server is Running
+- `auth/htpasswd`, mounted read-only into the container;
+- `.env`, containing the matching uv download and publication variables.
 
-```bash
-curl http://localhost:8080/simple/
+Both files are ignored and mode `0600`. `.env.example` documents the interface without a
+working secret. Noninteractive initialization reads `PYPI_USERNAME` and `PYPI_PASSWORD`
+from the environment.
+
+The server protects `update,download`. `/simple/` listings and `/health` remain public for
+easy diagnostics. Use:
+
+```text
+UV_INDEX_LOCAL_USERNAME
+UV_INDEX_LOCAL_PASSWORD
 ```
 
-You should see an HTML listing of available packages (empty at first).
+for downloads and:
 
-## Building and Publishing a Wheel
-
-From inside a repo (e.g. `platform-framework`):
-
-```bash
-# Build a specific package (output lands in the workspace root dist/)
-uv build --package framework-core
-
-# Publish all wheels to the local server (server accepts any credentials)
-UV_PUBLISH_USERNAME=any UV_PUBLISH_PASSWORD=any \
-  uv publish --publish-url http://localhost:8080 dist/*.whl
+```text
+UV_PUBLISH_USERNAME
+UV_PUBLISH_PASSWORD
 ```
 
-Or simply run `make build && make publish` from the repo root.
+for `uv publish`.
 
-## Referencing This Index in Other Repos
-
-All three repos (`platform-framework`, `platform-core`, `sales-application`) declare
-this server as an explicit index in their workspace root `pyproject.toml`:
-
-```toml
-[[tool.uv.index]]
-name     = "local"
-url      = "http://localhost:8080/simple/"
-explicit = true
-```
-
-Packages that come from this local index are pinned in `[tool.uv.sources]`:
-
-```toml
-[tool.uv.sources]
-framework-core       = { index = "local" }
-framework-infra      = { index = "local" }
-framework-evaluation = { index = "local" }
-```
-
-## Workflow Summary
-
-```
-platform-framework  →  make build && make publish  →  local-pypi server
-platform-core       →  uv sync  (resolves framework-* from local-pypi)
-sales-application   →  uv sync  (resolves core-* from local-pypi)
-```
-
-## Package Storage
-
-Wheels are stored in `./packages/` which is volume-mounted into the container.
-The directory is tracked in git via `.gitkeep`; actual wheels should be excluded
-from version control (add `packages/*.whl` to `.gitignore` if desired).
+This localhost example deliberately permits overwriting an existing artifact version.
+Production registries should reject overwrites, use HTTPS, and use managed credentials.
+Basic authentication over plain HTTP must not be used across an untrusted network.

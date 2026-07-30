@@ -1,8 +1,26 @@
 services:
   pypiserver:
-    image: pypiserver/pypiserver:latest
+    image: pypiserver/pypiserver:v2.4.1
     ports:
       - "8080:8080"
     volumes:
       - ./packages:/data/packages
-    command: run -p 8080 /data/packages --overwrite --authenticate . --passwords .
+      - ./auth/htpasswd:/data/auth/htpasswd:ro
+    command:
+      - run
+      - --port
+      - "8080"
+      - --authenticate
+      - update,download
+      - --passwords
+      - /data/auth/htpasswd
+      - --health-endpoint
+      - /health
+      - --overwrite
+      - /data/packages
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+      start_period: 2s
