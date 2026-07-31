@@ -5,7 +5,9 @@ SHELL := /bin/bash
 
 .PHONY: \
 	pypi-init-auth pypi-start pypi-stop pypi-status pypi-reset-packages \
-	sync-all test-all build-all publish-all run \
+	checkout-sales checkout-core checkout-framework checkout-all \
+	sync-all dev-release dev-core dev-framework dev-all dev-status \
+	test-all build-all publish-all run \
 	check-locks check-image-locks refresh-image-locks \
 	docker-release docker-git docker-local docker-test-all clean
 
@@ -46,18 +48,49 @@ pypi-reset-packages:
 
 # ── Host development ─────────────────────────────────────────────────────────
 
+checkout-sales:
+	./checkout.sh sales
+
+checkout-core:
+	./checkout.sh core
+
+checkout-framework:
+	./checkout.sh framework
+
+checkout-all:
+	./checkout.sh all
+
 sync-all:
-	cd platform-framework && uv sync --all-groups
-	cd platform-core && uv sync --all-groups
-	cd sales-application && uv sync --all-groups
+	@test ! -d platform-framework || $(MAKE) -C platform-framework sync
+	@test ! -d platform-core || $(MAKE) -C platform-core dev-release
+	$(MAKE) -C sales-application dev-release
+
+dev-release:
+	$(MAKE) -C sales-application dev-release
+
+dev-core:
+	@test -d platform-core || (echo "platform-core is not checked out. Run 'make checkout-core'." >&2; exit 1)
+	$(MAKE) -C sales-application dev-core
+
+dev-framework:
+	@test -d platform-framework || (echo "platform-framework is not checked out. Run 'make checkout-framework'." >&2; exit 1)
+	$(MAKE) -C sales-application dev-framework
+
+dev-all:
+	@test -d platform-core && test -d platform-framework || (echo "Both platform repositories are required. Run 'make checkout-all'." >&2; exit 1)
+	$(MAKE) -C sales-application dev-all
+
+dev-status:
+	$(MAKE) -C sales-application dev-status
+	@test ! -d platform-core || $(MAKE) -C platform-core dev-status
 
 test-all:
 	@echo "── platform-framework ──"
-	cd platform-framework && uv run pytest -v
+	@test ! -d platform-framework || $(MAKE) -C platform-framework test
 	@echo "── platform-core ──"
-	cd platform-core && uv run pytest -v
+	@test ! -d platform-core || $(MAKE) -C platform-core test
 	@echo "── sales-application ──"
-	cd sales-application && uv run pytest -v
+	$(MAKE) -C sales-application test
 
 build-all:
 	$(MAKE) -C platform-framework build
@@ -69,14 +102,17 @@ publish-all: build-all
 	$(MAKE) -C platform-core publish
 
 run:
-	cd sales-application && uv run uvicorn sales_api.main:app --reload --port 8000
+	$(MAKE) -C sales-application run
 
 # ── Locks and source-policy validation ───────────────────────────────────────
 
 check-locks:
+	python3 scripts/validate-dev-profiles.py
 	cd platform-framework && uv lock --check
 	cd platform-core && uv lock --check
+	$(MAKE) -C platform-core check-dev-locks
 	cd sales-application && uv lock --check
+	$(MAKE) -C sales-application check-dev-locks
 
 check-image-locks:
 	./scripts/check-image-locks.sh
@@ -90,7 +126,7 @@ docker-release:
 	@test -s $(PYPI_ENV) || (echo "Run 'make pypi-init-auth' first." >&2; exit 1)
 	@set -a; . $(PYPI_ENV); set +a; \
 		APP_REVISION=$(SALES_REVISION) \
-		RELEASE_LOCK_CHECKSUM=$$(shasum -a 256 sales-application/docker/modes/release/uv.lock | awk '{print $$1}') \
+		RELEASE_LOCK_CHECKSUM=$$(shasum -a 256 sales-application/uv.lock | awk '{print $$1}') \
 		docker buildx bake release
 
 docker-git:

@@ -11,12 +11,22 @@ usage() {
 refresh_mode() {
     local mode="$1"
     local mode_dir="${sales_repo}/docker/modes/${mode}"
+    local manifest_path
+    local lock_path
     local staging_root
     local staging_sales
     local staged_lock
     local temporary_lock
 
-    if [[ ! -f "${mode_dir}/pyproject.toml" ]]; then
+    if [[ "${mode}" == "release" ]]; then
+        manifest_path="${sales_repo}/pyproject.toml"
+        lock_path="${sales_repo}/uv.lock"
+    else
+        manifest_path="${mode_dir}/pyproject.toml"
+        lock_path="${mode_dir}/uv.lock"
+    fi
+
+    if [[ ! -f "${manifest_path}" ]]; then
         echo "error: unknown image mode '${mode}'." >&2
         exit 2
     fi
@@ -25,7 +35,7 @@ refresh_mode() {
     trap 'rm -rf "${staging_root}"' EXIT
     staging_sales="${staging_root}/sales-application"
     mkdir -p "${staging_sales}"
-    cp "${mode_dir}/pyproject.toml" "${staging_sales}/pyproject.toml"
+    cp "${manifest_path}" "${staging_sales}/pyproject.toml"
     cp -R "${sales_repo}/packages" "${staging_sales}/packages"
 
     if [[ "${mode}" == "local" ]]; then
@@ -48,10 +58,10 @@ refresh_mode() {
     echo "Refreshing ${mode} lock..."
     uv lock --project "${staging_sales}"
     staged_lock="${staging_sales}/uv.lock"
-    temporary_lock="$(mktemp "${mode_dir}/.uv.lock.XXXXXX")"
+    temporary_lock="$(mktemp "$(dirname "${lock_path}")/.uv.lock.XXXXXX")"
     cp "${staged_lock}" "${temporary_lock}"
     chmod 644 "${temporary_lock}"
-    mv -f "${temporary_lock}" "${mode_dir}/uv.lock"
+    mv -f "${temporary_lock}" "${lock_path}"
     trap - EXIT
     rm -rf "${staging_root}"
 }

@@ -7,6 +7,7 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+SALES_ROOT = ROOT / "sales-application"
 MODES = ROOT / "sales-application" / "docker" / "modes"
 INTERNAL = {"core-domain", "core-services", "framework-core", "framework-infra"}
 SALES = {"sales-api", "sales-backend"}
@@ -35,7 +36,7 @@ def fail(errors: list[str], path: Path, message: str) -> None:
 
 
 def validate_mode(mode: str, errors: list[str]) -> None:
-    directory = MODES / mode
+    directory = SALES_ROOT if mode == "release" else MODES / mode
     manifest_path = directory / "pyproject.toml"
     lock_path = directory / "uv.lock"
     if not manifest_path.is_file():
@@ -139,6 +140,8 @@ def validate_no_committed_credentials(errors: list[str]) -> None:
         ROOT / "docker-bake.hcl",
         ROOT / "sales-application" / "Dockerfile",
         ROOT / "sales-application" / "Dockerfile.local",
+        ROOT / "sales-application" / "pyproject.toml",
+        ROOT / "sales-application" / "uv.lock",
         *(MODES.glob("*/pyproject.toml")),
         *(MODES.glob("*/uv.lock")),
     ]

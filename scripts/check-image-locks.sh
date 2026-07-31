@@ -11,8 +11,13 @@ python3 "${root_dir}/scripts/validate-image-locks.py"
 for mode in release git local; do
     staging_sales="${staging_root}/${mode}/sales-application"
     mkdir -p "${staging_sales}"
-    cp "${sales_repo}/docker/modes/${mode}/pyproject.toml" "${staging_sales}/pyproject.toml"
-    cp "${sales_repo}/docker/modes/${mode}/uv.lock" "${staging_sales}/uv.lock"
+    if [[ "${mode}" == "release" ]]; then
+        cp "${sales_repo}/pyproject.toml" "${staging_sales}/pyproject.toml"
+        cp "${sales_repo}/uv.lock" "${staging_sales}/uv.lock"
+    else
+        cp "${sales_repo}/docker/modes/${mode}/pyproject.toml" "${staging_sales}/pyproject.toml"
+        cp "${sales_repo}/docker/modes/${mode}/uv.lock" "${staging_sales}/uv.lock"
+    fi
     cp -R "${sales_repo}/packages" "${staging_sales}/packages"
     if [[ "${mode}" == "local" ]]; then
         mkdir -p "${staging_root}/${mode}/platform-core" "${staging_root}/${mode}/platform-framework"

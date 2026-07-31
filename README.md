@@ -6,26 +6,53 @@ A working example of three independent uv workspaces:
 platform-framework -> platform-core -> sales-application
 ```
 
-Each repository retains its own release cycle, virtual environment, and host-development
-lock. The coordination repository adds reproducible Docker inputs without combining the
+Each repository retains its own release cycle, virtual environment, and lock. Released
+wheels are the host-development default; source checkouts are explicit, committed profiles.
+The coordination repository adds reproducible Docker inputs without combining the
 repositories into one uv workspace.
 
 ## Checkout and host development
 
 ```bash
-bash checkout.sh
-make sync-all
-make test-all
-make run
+make checkout-sales       # sales only
+make checkout-core        # sales + platform-core
+make checkout-framework   # sales + platform-framework
+make checkout-all         # all source repositories
 ```
 
-The normal repository manifests use editable sibling paths, so changes flow immediately
-between the three checkouts. `make check-locks` verifies those development locks without
-rewriting them.
+Start the authenticated index, then select a sales development profile:
+
+```bash
+make pypi-init-auth
+make pypi-start
+
+make dev-release          # released core + released framework (default)
+make dev-core             # editable core + released framework
+make dev-framework        # released core + editable framework
+make dev-all              # editable core + editable framework
+make dev-status
+```
+
+Profile selection synchronizes the selected committed lock into the stable
+`sales-application/.venv`, so IDE configuration does not move. The selected profile is
+recorded in an ignored `.dev-profile` marker. Switching back to released packages is always
+`make dev-release`; the presence of a sibling checkout never changes dependency resolution.
+
+Use `make test-all` and `make run` after selecting a profile. These targets execute the
+existing virtual environments directly so uv does not silently resync the root release lock
+over an active source profile. Avoid `uv run` in `sales-application` while a source profile
+is active; use its Make targets instead.
 
 Workspace-only source declarations live at each repository root. This keeps individual
 package metadata portable when a package is built, published, or installed from a Git
 subdirectory.
+
+When working in `platform-core` itself, its equivalent choices are:
+
+```bash
+make -C platform-core dev-release    # released framework
+make -C platform-core dev-framework  # editable framework
+```
 
 ## Authenticated local package index
 
@@ -65,13 +92,15 @@ current sales source inside every image and do not need to be published first.
 
 ## Three immutable image modes
 
-The sales repository contains independent deployment manifests and locks:
+The sales release manifest and lock are also its root host defaults. Git and local image
+builds retain independent deployment inputs:
 
 ```text
-sales-application/docker/modes/
-├── release/{pyproject.toml,uv.lock}
-├── git/{pyproject.toml,uv.lock}
-└── local/{pyproject.toml,uv.lock}
+sales-application/
+├── pyproject.toml + uv.lock                 # release
+└── docker/modes/
+    ├── git/{pyproject.toml,uv.lock}
+    └── local/{pyproject.toml,uv.lock}
 ```
 
 - `release` installs the four upstream packages from the authenticated `local` index.
@@ -128,9 +157,8 @@ make check-image-locks
 ```
 
 The refresh script stages copies in a safely created temporary checkout layout and replaces
-the selected lock only after `uv lock` succeeds. It never overwrites the developer manifest
-or lock. Release refresh requires the authenticated local index to contain the four upstream
-wheels.
+the selected lock only after `uv lock` succeeds. Release refresh updates the canonical sales
+root lock and requires the authenticated local index to contain the four upstream wheels.
 
 Git mode currently pins:
 
