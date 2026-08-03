@@ -6,6 +6,7 @@ SHELL := /bin/bash
 .PHONY: \
 	pypi-init-auth pypi-start pypi-stop pypi-status pypi-reset-packages \
 	checkout-sales checkout-core checkout-framework checkout-all \
+	git-status \
 	sync-all dev-release dev-core dev-framework dev-all dev-status \
 	test-all build-all publish-all run \
 	check-locks check-image-locks refresh-image-locks \
@@ -47,6 +48,12 @@ pypi-reset-packages:
 		\( -name '*.whl' -o -name '*.tar.gz' -o -name '*.zip' \) -print -delete
 
 # ── Host development ─────────────────────────────────────────────────────────
+
+git-status:
+	@./scripts/git-status.sh . python-multi-project-setup
+	@if test -d platform-framework/.git; then ./scripts/git-status.sh platform-framework platform-framework; else echo "platform-framework: not checked out"; fi
+	@if test -d platform-core/.git; then ./scripts/git-status.sh platform-core platform-core; else echo "platform-core: not checked out"; fi
+	@if test -d sales-application/.git; then ./scripts/git-status.sh sales-application sales-application; else echo "sales-application: not checked out"; fi
 
 checkout-sales:
 	./checkout.sh sales

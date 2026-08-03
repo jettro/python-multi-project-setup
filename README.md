@@ -54,6 +54,23 @@ make -C platform-core dev-release    # released framework
 make -C platform-core dev-framework  # editable framework
 ```
 
+## Git status across repositories
+
+Run the aggregate status from the coordination repository:
+
+```bash
+make git-status
+```
+
+It refreshes remote references and shows each checked-out repository's branch, upstream
+ahead/behind counts, up to ten incoming commits, and local changes. Each child repository
+also exposes its own `make git-status`. To use cached remote references without network
+access:
+
+```bash
+GIT_STATUS_FETCH=0 make git-status
+```
+
 ## Authenticated local package index
 
 The local pypiserver is an intentionally small teaching registry. Initialize credentials

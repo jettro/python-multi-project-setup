@@ -15,3 +15,6 @@ local-pypi/.env
 local-pypi/auth/htpasswd
 .env
 *.htpasswd
+
+# Development tools generate all sorts of folders that we do not want in git
+.idea
