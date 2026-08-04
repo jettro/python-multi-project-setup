@@ -52,8 +52,8 @@ pypi-reset-packages:
 git-status:
 	@./scripts/git-status.sh . python-multi-project-setup
 	@if test -d platform-framework/.git; then ./scripts/git-status.sh platform-framework platform-framework; else echo "platform-framework: not checked out"; fi
-	@if test -d platform-core/.git; then ./scripts/git-status.sh platform-core platform-core; else echo "platform-core: not checked out"; fi
-	@if test -d sales-application/.git; then ./scripts/git-status.sh sales-application sales-application; else echo "sales-application: not checked out"; fi
+	@if test -d platform-core/.git; then ./scripts/git-status.sh platform-core platform-core; platform-core/scripts/select-sources.py status; else echo "platform-core: not checked out"; fi
+	@if test -d sales-application/.git; then ./scripts/git-status.sh sales-application sales-application; sales-application/scripts/select-sources.py status; else echo "sales-application: not checked out"; fi
 
 checkout-sales:
 	./checkout.sh sales
@@ -114,12 +114,11 @@ run:
 # ── Locks and source-policy validation ───────────────────────────────────────
 
 check-locks:
-	python3 scripts/validate-dev-profiles.py
 	cd platform-framework && uv lock --check
+	$(MAKE) -C platform-core assert-release
 	cd platform-core && uv lock --check
-	$(MAKE) -C platform-core check-dev-locks
+	$(MAKE) -C sales-application assert-release
 	cd sales-application && uv lock --check
-	$(MAKE) -C sales-application check-dev-locks
 
 check-image-locks:
 	./scripts/check-image-locks.sh
@@ -131,6 +130,7 @@ refresh-image-locks:
 
 docker-release:
 	@test -s $(PYPI_ENV) || (echo "Run 'make pypi-init-auth' first." >&2; exit 1)
+	@$(MAKE) -C sales-application assert-release
 	@set -a; . $(PYPI_ENV); set +a; \
 		APP_REVISION=$(SALES_REVISION) \
 		RELEASE_LOCK_CHECKSUM=$$(shasum -a 256 sales-application/uv.lock | awk '{print $$1}') \

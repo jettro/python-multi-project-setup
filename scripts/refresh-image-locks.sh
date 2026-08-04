@@ -45,6 +45,7 @@ refresh_mode() {
     fi
 
     if [[ "${mode}" == "release" ]]; then
+        "${sales_repo}/scripts/select-sources.py" check-manifest release
         if [[ ! -f "${root_dir}/local-pypi/.env" ]]; then
             echo "error: release lock needs local index credentials; run 'make pypi-init-auth'." >&2
             exit 1

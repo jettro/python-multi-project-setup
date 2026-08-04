@@ -7,7 +7,7 @@ platform-framework -> platform-core -> sales-application
 ```
 
 Each repository retains its own release cycle, virtual environment, and lock. Released
-wheels are the host-development default; source checkouts are explicit, committed profiles.
+wheels are the host-development default; source checkouts are selected explicitly.
 The coordination repository adds reproducible Docker inputs without combining the
 repositories into one uv workspace.
 
@@ -20,7 +20,7 @@ make checkout-framework   # sales + platform-framework
 make checkout-all         # all source repositories
 ```
 
-Start the authenticated index, then select a sales development profile:
+Start the authenticated index, then select the sales dependency sources:
 
 ```bash
 make pypi-init-auth
@@ -33,15 +33,14 @@ make dev-all              # editable core + editable framework
 make dev-status
 ```
 
-Profile selection synchronizes the selected committed lock into the stable
-`sales-application/.venv`, so IDE configuration does not move. The selected profile is
-recorded in an ignored `.dev-profile` marker. Switching back to released packages is always
-`make dev-release`; the presence of a sibling checkout never changes dependency resolution.
+The commands update only the managed `[tool.uv.sources]` block in the root manifest, refresh
+the root lock, and synchronize the stable `sales-application/.venv`. PyCharm therefore sees
+one project, one lock, and one interpreter. Switching back to the canonical committed state
+is always `make dev-release`; the presence of a sibling checkout never changes resolution.
 
-Use `make test-all` and `make run` after selecting a profile. These targets execute the
-existing virtual environments directly so uv does not silently resync the root release lock
-over an active source profile. Avoid `uv run` in `sales-application` while a source profile
-is active; use its Make targets instead.
+Source switching intentionally makes `pyproject.toml` and `uv.lock` local changes. Return to
+`release` before committing, pulling, or building a release image. The switch is
+transactional: a failed lock or sync restores the previous manifest and lock.
 
 Workspace-only source declarations live at each repository root. This keeps individual
 package metadata portable when a package is built, published, or installed from a Git
@@ -63,9 +62,9 @@ make git-status
 ```
 
 It refreshes remote references and shows each checked-out repository's branch, upstream
-ahead/behind counts, up to ten incoming commits, and local changes. Each child repository
-also exposes its own `make git-status`. To use cached remote references without network
-access:
+ahead/behind counts, up to ten incoming commits, local changes, and active source mode.
+Each child repository also exposes its own `make git-status`. To use cached remote
+references without network access:
 
 ```bash
 GIT_STATUS_FETCH=0 make git-status
@@ -89,6 +88,38 @@ use, provide `PYPI_USERNAME` and `PYPI_PASSWORD` in the environment. It creates 
 Package listing and `/health` are public for diagnostics. Uploads and package downloads
 require Basic authentication. Plain HTTP Basic authentication is acceptable only for this
 localhost demonstration; a real registry must use HTTPS and managed, rotated credentials.
+
+### PyCharm and IntelliJ
+
+The IDE and `uv` use separate credentials. To browse and install packages through the IDE,
+open the **Python Packages** tool window, add a **Basic HTTP** repository, and use:
+
+- URL: `http://localhost:8080/simple/`
+- Username and password: the `UV_INDEX_LOCAL_USERNAME` and `UV_INDEX_LOCAL_PASSWORD`
+  values from the ignored `local-pypi/.env` file
+
+Let the IDE store these credentials in the operating system keychain. Do not put them in
+`pyproject.toml`, `uv.lock`, the repository URL, or committed IDE configuration.
+
+PyCharm does not necessarily pass its saved repository credentials to `uv`. For dependency
+syncs started by the IDE, add the same local credentials to `~/.netrc`:
+
+```text
+machine localhost
+  login YOUR_USERNAME
+  password YOUR_PASSWORD
+```
+
+Then restrict access to the file:
+
+```bash
+chmod 600 ~/.netrc
+```
+
+`uv` always reads `~/.netrc`, including when the IDE launches it. Be aware that `.netrc`
+stores the password as plain text and shares these credentials with other clients connecting
+to `localhost`; this is suitable only for the local demo. For a real HTTPS package registry,
+prefer the registry's credential integration or `uv auth login` with secure credential storage.
 
 The demo permits overwriting a version to keep the learning loop short. Production release
 repositories should reject overwrites. Reset only generated packages with:
